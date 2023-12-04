@@ -1,0 +1,32 @@
+jobs:
+  - job: BuildDockerImage
+    displayName: 'Build Docker Images'
+    pool:
+      name: 'Azure Pipelines'
+      vmImage: 'ubuntu-latest'
+    steps:
+      - displayName: 'Get Git Commit Short Code'
+        script: |
+          export CommitCode=$(echo $(Build.SourceVersion) | cut -c1-7 )
+          echo "##vso[task.setvariable variable=Build.SourceVersionShort;sOutput=true;]$CommitCode"
+
+      - task: Docker@2
+        displayName: 'Build Image'
+        inputs:
+          repository: '$(DOCKER_IMAGE_NAME)'
+          command: 'build'
+          Dockerfile: '**/Dockerfile'
+          tags: 'latest'
+          addPipelineData: false
+          addBaseImageData: false
+
+      - task: ECRPushImage@1
+        displayName: 'Push Image'
+        condition: ne(variables['Build.Reason'], 'PullRequest')
+        inputs:
+          awsCredentials: '$(AWS_ECR_CRED)'
+          regionName: '$(REGION)'
+          imageSource: 'imagename'
+          sourceImageName: '$(DOCKER_IMAGE_NAME)'
+          repositoryName: '$(ECRNAME)'
+          pushTag: '$(Build.SourceVersionShort)-$(Build.BuildId)'
